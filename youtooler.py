@@ -1,7 +1,19 @@
 import requests
+from colorama import Fore, Style
 from argparse import ArgumentParser
 from sys import stderr
 from os import system
+
+# Prints the logo and description
+def print_logo():
+    print(f'{Style.BRIGHT}')
+    print(f'{Fore.MAGENTA} _____.___.           {Fore.RED}___________           .__                ')
+    print(f'{Fore.MAGENTA}\\__  |   | ____  __ _{Fore.RED}\\__    ___/___   ____ |  |   {Fore.MAGENTA}___________ ')
+    print(f'{Fore.MAGENTA} /   |   |/  _ \\|  |  \\{Fore.RED}|    | /  _ \\ /  _ \\|  | {Fore.MAGENTA}_/ __ \\_  __ \\')
+    print(f'{Fore.YELLOW} \\____   (  <_> )  |  /{Fore.RED}|    |(  <_> |  <_> )  |_{Fore.YELLOW}\\  ___/|  | \\/')
+    print(f'{Fore.YELLOW} / ______|\\____/|____/ {Fore.RED}|____| \\____/ \\____/|____/{Fore.YELLOW}\\___  >__|   ')
+    print(f'{Fore.YELLOW} \\/                                                  {Fore.YELLOW}\\/       ')
+    print(f'{Style.RESET_ALL}')
 
 # Returns an array of requests.Session() objects proxied using tor
 def tor_sessions(nOfSessions: int=1):
@@ -57,19 +69,21 @@ def get_error_message(err: str) -> str:
     return f'Error: {error_message[err]}'
 
 def main():
+    print_logo()
+
     args = parse_arguments()
 
-    if not args.sessions == None:
-        sessions = tor_sessions(int(args.sessions))
-    else:
-        sessions = tor_sessions()
+    # if not args.sessions == None:
+    #     sessions = tor_sessions(int(args.sessions))
+    # else:
+    #     sessions = tor_sessions()
 
-    if not verify_youtube_url(args.url):
-        print(get_error_message('INVURL'), file=stderr)
-        exit()
+    # if not verify_youtube_url(args.url):
+    #     print(get_error_message('INVURL'), file=stderr)
+    #     exit()
 
-    for session in sessions:
-        print(get_external_ip(session))
+    # for session in sessions:
+    #     print(get_external_ip(session))
 
 if __name__ == '__main__':
     main()
