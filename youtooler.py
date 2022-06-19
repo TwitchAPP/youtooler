@@ -1,9 +1,9 @@
 import requests
 import threading
-import torrequest
 from colorama import Fore, Back, Style
 from argparse import ArgumentParser
 from sys import stderr
+from os import system
 
 class RequestThread(threading.Thread):
     def __init__(self, url: str, socksPort: int, controlPort: int):
@@ -13,18 +13,25 @@ class RequestThread(threading.Thread):
         self.controlPort = controlPort
 
     def run(self):
-        print(f'{Style.BRIGHT}{Fore.GREEN}Creating a new Tor circuit on ports: socks={self.socksPort} control={self.controlPort}{Style.RESET_ALL}')
+        # Launching a new Tor istance
+        system(f'tor -f ./conf/torrc.{self.socksPort}')
 
-        with torrequest.TorRequest(self.socksPort, self.controlPort) as tor:
-            while True:
-                response = tor.get(self.url)
-                
-                if response.status_code in range(200, 300):
-                    print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(tor)}, Request status: {response.status_code}{Style.RESET_ALL}')
-                else:
-                    print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(tor)}, Request status: {Fore.RED}{response.status_code}{Style.RESET_ALL}')
+        # Proxying the requests through Tor
+        tor = requests.Session()
+        tor.proxies = {
+            'http': f'socks5://127.0.0.1:{self.socksPort}',
+            'https': f'socks5://127.0.0.1:{self.socksPort}'
+        }
 
-                tor.reset_identity()
+        print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on ports: socks={self.socksPort} control={self.controlPort}{Style.RESET_ALL}')
+
+        while True:
+            response = tor.get(self.url)
+            
+            if response.status_code in range(200, 300):
+                print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(tor)}, Request status: {response.status_code}{Style.RESET_ALL}')
+            else:
+                print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(tor)}, Request status: {Fore.RED}{response.status_code}{Style.RESET_ALL}')
 
 # Prints the logo and description
 def print_logo():
@@ -39,8 +46,8 @@ def print_logo():
     print(f'{Style.RESET_ALL}')
 
 # Returns the current external IPV4 address
-def get_external_ip(tor: torrequest.TorRequest) -> str:
-    return tor.get('http://ipecho.net/plain').text
+def get_external_ip(session: requests.Session) -> str:
+    return session.get('http://ipecho.net/plain').text
     # return tor.get('https://api64.ipify.org/?format=json').json()['ip']
 
 # CLI args parser
@@ -67,7 +74,8 @@ def verify_youtube_url(url: str) -> bool:
 def get_error_message(err: str) -> str:
     error_message = {
         'INVURL': 'The passed url is not valid.',
-        'INVLVL': 'The number of sessions specified is not valid (MIN=1, MAX=5).'
+        'INVLVL': 'The number of sessions specified is not valid (MIN=1, MAX=5).',
+        'DIREXS': f'The temporary directory {TMP_DIR} already exists.'
     }
     
     return f'{Style.BRIGHT}{Fore.RED}Error: {error_message[err]}{Style.RESET_ALL}'
