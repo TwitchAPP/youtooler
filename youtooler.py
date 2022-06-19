@@ -1,8 +1,30 @@
 import requests
-from torrequest import TorRequest
+import threading
+import torrequest
 from colorama import Fore, Back, Style
 from argparse import ArgumentParser
 from sys import stderr
+
+class RequestThread(threading.Thread):
+    def __init__(self, url: str, socksPort: int, controlPort: int):
+        threading.Thread.__init__(self)
+        self.url = url
+        self.socksPort = socksPort
+        self.controlPort = controlPort
+
+    def run(self):
+        print(f'{Style.BRIGHT}{Fore.GREEN}Creating a new Tor circuit on ports: socks={self.socksPort} control={self.controlPort}{Style.RESET_ALL}')
+
+        with torrequest.TorRequest(self.socksPort, self.controlPort) as tor:
+            while True:
+                response = tor.get(self.url)
+                
+                if response.status_code in range(200, 300):
+                    print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(tor)}, Request status: {response.status_code}{Style.RESET_ALL}')
+                else:
+                    print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(tor)}, Request status: {Fore.RED}{response.status_code}{Style.RESET_ALL}')
+
+                tor.reset_identity()
 
 # Prints the logo and description
 def print_logo():
@@ -17,16 +39,16 @@ def print_logo():
     print(f'{Style.RESET_ALL}')
 
 # Returns the current external IPV4 address
-def get_external_ip(session: TorRequest) -> str:
-    return session.get('https://api64.ipify.org/?format=json').json()['ip']
+def get_external_ip(tor: torrequest.TorRequest) -> str:
+    return tor.get('http://ipecho.net/plain').text
+    # return tor.get('https://api64.ipify.org/?format=json').json()['ip']
 
 # CLI args parser
 def get_arguments():
-    parser = ArgumentParser()
+    parser = ArgumentParser(description='YouTube automated views farmer based on TOR.')
+    
     parser.add_argument('-u', '--url', help='The url of the target YouTube video.', required=True)
     parser.add_argument('-l', '--level', help='The amount of concurrent sessions to run (MIN=1, MAX=5).', required=False)
-    parser.add_argument('-p', '--proxy-port', help='Specify custom TOR proxy port.', required=False)
-    parser.add_argument('-c', '--ctrl-port', help='Specify custom TOR control port.', required=False)
     parser.add_argument('-a', '--auth', help='Include this flag if you have TOR protected by a password.', required=False)
 
     return parser.parse_args()
@@ -45,17 +67,41 @@ def verify_youtube_url(url: str) -> bool:
 def get_error_message(err: str) -> str:
     error_message = {
         'INVURL': 'The passed url is not valid.',
-        'INVSES': 'The number of sessions specified is not valid (MIN=1, MAX=5).',
-        'STPTOR': 'Another istance of TOR is running on the same port, stop it and re-launch the program.'
+        'INVLVL': 'The number of sessions specified is not valid (MIN=1, MAX=5).'
     }
     
-    return f'Error: {error_message[err]}'
+    return f'{Style.BRIGHT}{Fore.RED}Error: {error_message[err]}{Style.RESET_ALL}'
+
+def start_application(url: str, level: int=1):
+    config = [
+        { 'SOCKS': 9050, 'CONTROL': 9051 },
+        { 'SOCKS': 9052, 'CONTROL': 9053 },
+        { 'SOCKS': 9054, 'CONTROL': 9055 },
+        { 'SOCKS': 9056, 'CONTROL': 9057 },
+        { 'SOCKS': 9058, 'CONTROL': 9059 },
+    ]
+
+    threads = []
+    
+    if not level in range(1, 6):
+        print(get_error_message('INVLVL'), file=stderr)
+        exit()
+
+    for i in range(level):
+        threads.append(RequestThread(url=url, socksPort=config[i]['SOCKS'], controlPort=config[i]['CONTROL']))
+        threads[i].start()
 
 def main():
+    # Startup
     print_logo()
 
     # CLI args parsing
     args = get_arguments()
+
+    if verify_youtube_url(args.url):
+        start_application(args.url, int(args.level))
+    else:
+        print(get_error_message('INVURL'), stderr)
 
 if __name__ == '__main__':
     main()
