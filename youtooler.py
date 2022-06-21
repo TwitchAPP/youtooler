@@ -1,51 +1,56 @@
 import atexit
-import requests
-import threading
+import os
 import random
-import time
+import requests
+import requests_random_user_agent
 import shutil
-from colorama import Fore, Back, Style
+import threading
+import time
 from argparse import ArgumentParser
+from colorama import Fore, Back, Style
 from sys import stderr
-from os import system, mkdir
 
 class RequestThread(threading.Thread):
+    '''
+    Takes the target YouTube url and the socks_port for TOR as parameters.\n
+    Proxies each request through TOR using a random User-Agent.\n
+    For each TOR instance a temporary torrc file and DataDirectory are created, they will be deleted when the program exits.\n
+    To store the components needed by the program to run a temporary directory (/tmp/youtooler/) will be created.
+    '''
+
     def __init__(self, url: str, socks_port: int):
         threading.Thread.__init__(self)
         self.url = url
         self.socks_port = socks_port
 
     def run(self):
+        # Starting new TOR instance on the specified socks_port
         torrc_path = create_temp_torrc(self.socks_port)
+        os.system(f'tor -f {torrc_path} > /dev/null &')
 
-        system(f'tor -f {torrc_path} > /dev/null &')
+        print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks port: {self.socks_port}{Style.RESET_ALL}')
 
-        print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on port: socks={self.socks_port}{Style.RESET_ALL}')
-
-        # Binding session proxies to tor
-        session = requests.Session()
-        session.proxies = {
-            'http': f'socks5://127.0.0.1:{self.socks_port}',
-            'https': f'socks5://127.0.0.1:{self.socks_port}'
-        }
-
-        # Request cycle
         while True:
+            # Proxying requests through TOR
+            session = requests.Session()
+            session.proxies = {
+                'http': f'socks5://127.0.0.1:{self.socks_port}',
+                'https': f'socks5://127.0.0.1:{self.socks_port}'
+            }
+
             try:
                 response = session.get(self.url)
             except:
                 pass
-
-            if response.status_code in range(200, 300):
-                print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(session)}\t|   Request status: {response.status_code}{Style.RESET_ALL}')
             else:
-                print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(session)}\t|   Request status: {Fore.RED}{response.status_code}{Style.RESET_ALL}')
+                if response.status_code in range(200, 300):
+                    print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(session)}\t|   Request status: {response.status_code}{Style.RESET_ALL}')
+                else:
+                    print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(session)}\t|   Request status: {Fore.RED}{response.status_code}{Style.RESET_ALL}')
 
-            # Sleeping from 5 to 10 seconds
-            rand_sleep = random.uniform(5, 10)
-            time.sleep(rand_sleep)
+            # Sleeping between 5 and 10 seconds
+            time.sleep(random.uniform(5, 10))
 
-# Prints the logo and description
 def print_logo():
     print(f'{Style.BRIGHT}')
     print(f'{Fore.MAGENTA}                         _____.___.           {Fore.CYAN}___________           .__                ')
@@ -57,29 +62,54 @@ def print_logo():
     print(f'\n{Fore.WHITE}{Back.RED}Developers assume no liability and are not responsible for any misuse or damage caused by this program.')
     print(f'{Style.RESET_ALL}')
 
-# Creates a temporary torrc file
-def create_temp_torrc(socks_port: int) -> str:
-    TORRC_PATH = f'/tmp/youtooler/torrc.{socks_port}'
-    DATA_DIR = f'/tmp/youtooler/{socks_port}'
+def create_storage_dir() -> str:
+    '''
+    Creates the temporary storage directory of the program (/tmp/youtooler).\n
+    Returns the path to the storage directory.
+    '''
+
+    STORAGE_DIR = '/tmp/youtooler'
 
     try:
-        mkdir('/tmp/youtooler/')
+        os.mkdir(STORAGE_DIR)
     except:
-        pass
+        print(get_error_message('STRDIR'), file=stderr)
+        exit()
+
+    return STORAGE_DIR
+
+def create_temp_torrc(socks_port: int) -> str:
+    '''
+    Creates a temporary torrc file inside the program's storage directory (/tmp/youtooler).\n
+    Also creates a temporary DataDirectory (used by TOR).\n
+    Example torrc:\n
+    --------------\n
+    SocksPort 9050\n
+    DataDirectory /tmp/youtooler/9050
+    '''
+
+    DATA_DIR = f'/tmp/youtooler/{socks_port}'
+    TORRC_PATH = f'/tmp/youtooler/torrc.{socks_port}'
     
     try:
-        mkdir(DATA_DIR)
+        os.mkdir(DATA_DIR)
     except:
-        pass
-
-    with open(TORRC_PATH, 'w') as torrc:
-        torrc.write(f'SocksPort {socks_port}\nDataDirectory {DATA_DIR}')
-        torrc.close()
+        print(get_error_message('DTADIR'), file=stderr)
+        exit()
+    else:
+        with open(TORRC_PATH, 'w') as torrc:
+            torrc.write(f'SocksPort {socks_port}\nDataDirectory {DATA_DIR}\n')
+            torrc.close()
 
     return TORRC_PATH
 
-# Returns the current external IPV4 address
 def get_external_ip(session: requests.Session) -> str:
+    '''
+    Returns the external IP address with the help of a random IP API.\n
+    Each time the function gets called, a random API is chosen to retrieve the IP address.\n
+    The function checks whether an API is working or not, if it isn't then another one is chosen.
+    '''
+
     apis = [
         'https://api.ipify.org',
         'https://api.my-ip.io/ip',
@@ -103,7 +133,6 @@ def get_external_ip(session: requests.Session) -> str:
         else: # Removing API if not working
             apis.pop(apis.index(api))
 
-# CLI args parser
 def get_arguments():
     parser = ArgumentParser(description='YouTube automated views farmer based on TOR.')
     
@@ -112,8 +141,11 @@ def get_arguments():
 
     return parser.parse_args()
 
-# Checks if 'url' is an existing YouTube video
 def verify_youtube_url(url: str) -> bool:
+    '''
+    Checks whether the passed url is a real YouTube video.
+    '''
+    
     if not url.find('https://www.youtube.com/watch?v=') == 0:
         return False
 
@@ -122,11 +154,16 @@ def verify_youtube_url(url: str) -> bool:
 
     return True
 
-# Print the error message corresponding to 'err'
 def get_error_message(err: str) -> str:
+    '''
+    Returns the error message corresponding to the passed error code (err).
+    '''
+    
     error_message = {
         'INVURL': 'The passed url is not valid.',
-        'INVLVL': 'The number of sessions specified is not valid (MIN=1, MAX=5).'
+        'INVLVL': 'The number of sessions specified is not valid (MIN=1, MAX=5).',
+        'STRDIR': 'Could not create the storage directory... run the program again.',
+        'DTADIR': 'Could not create the data directory... run the program again.'
     }
     
     return f'{Style.BRIGHT}{Fore.RED}Error: {error_message[err]}{Style.RESET_ALL}'
@@ -134,7 +171,9 @@ def get_error_message(err: str) -> str:
 def start_application(url: str, level: int=1):
     socks_ports = [9050, 9052, 9054, 9056, 9058]
     threads = []
-    
+
+    create_storage_dir()
+
     if not level in range(1, 6):
         print(get_error_message('INVLVL'), file=stderr)
         exit()
@@ -144,16 +183,18 @@ def start_application(url: str, level: int=1):
         threads[i].start()
 
 def clean_at_exit():
+    '''
+    Removes the temporary storage directory and its subdirectories.
+    '''
+
     try:
         shutil.rmtree('/tmp/youtooler')
     except:
         pass
 
 def main():
-    # Startup
     print_logo()
 
-    # CLI args parsing
     args = get_arguments()
 
     if verify_youtube_url(args.url):
@@ -162,6 +203,5 @@ def main():
         print(get_error_message('INVURL'), stderr)
 
 if __name__ == '__main__':
-    # Exit handler
-    atexit.register(clean_at_exit)
+    atexit.register(clean_at_exit) # Exit handler
     main()
