@@ -1,37 +1,49 @@
+import atexit
 import requests
 import threading
+import random
+import time
+import shutil
 from colorama import Fore, Back, Style
 from argparse import ArgumentParser
 from sys import stderr
-from os import system
+from os import system, mkdir
 
 class RequestThread(threading.Thread):
-    def __init__(self, url: str, socksPort: int, controlPort: int):
+    def __init__(self, url: str, socks_port: int):
         threading.Thread.__init__(self)
         self.url = url
-        self.socksPort = socksPort
-        self.controlPort = controlPort
+        self.socks_port = socks_port
 
     def run(self):
-        # Launching a new Tor istance
-        system(f'tor -f ./conf/torrc.{self.socksPort}')
+        torrc_path = create_temp_torrc(self.socks_port)
 
-        # Proxying the requests through Tor
-        tor = requests.Session()
-        tor.proxies = {
-            'http': f'socks5://127.0.0.1:{self.socksPort}',
-            'https': f'socks5://127.0.0.1:{self.socksPort}'
+        system(f'tor -f {torrc_path} > /dev/null &')
+
+        print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on port: socks={self.socks_port}{Style.RESET_ALL}')
+
+        # Binding session proxies to tor
+        session = requests.Session()
+        session.proxies = {
+            'http': f'socks5://127.0.0.1:{self.socks_port}',
+            'https': f'socks5://127.0.0.1:{self.socks_port}'
         }
 
-        print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on ports: socks={self.socksPort} control={self.controlPort}{Style.RESET_ALL}')
-
+        # Request cycle
         while True:
-            response = tor.get(self.url)
-            
+            try:
+                response = session.get(self.url)
+            except:
+                pass
+
             if response.status_code in range(200, 300):
-                print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(tor)}, Request status: {response.status_code}{Style.RESET_ALL}')
+                print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(session)}\t|   Request status: {response.status_code}{Style.RESET_ALL}')
             else:
-                print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(tor)}, Request status: {Fore.RED}{response.status_code}{Style.RESET_ALL}')
+                print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(session)}\t|   Request status: {Fore.RED}{response.status_code}{Style.RESET_ALL}')
+
+            # Sleeping from 5 to 10 seconds
+            rand_sleep = random.uniform(5, 10)
+            time.sleep(rand_sleep)
 
 # Prints the logo and description
 def print_logo():
@@ -45,10 +57,51 @@ def print_logo():
     print(f'\n{Fore.WHITE}{Back.RED}Developers assume no liability and are not responsible for any misuse or damage caused by this program.')
     print(f'{Style.RESET_ALL}')
 
+# Creates a temporary torrc file
+def create_temp_torrc(socks_port: int) -> str:
+    TORRC_PATH = f'/tmp/youtooler/torrc.{socks_port}'
+    DATA_DIR = f'/tmp/youtooler/{socks_port}'
+
+    try:
+        mkdir('/tmp/youtooler/')
+    except:
+        pass
+    
+    try:
+        mkdir(DATA_DIR)
+    except:
+        pass
+
+    with open(TORRC_PATH, 'w') as torrc:
+        torrc.write(f'SocksPort {socks_port}\nDataDirectory {DATA_DIR}')
+        torrc.close()
+
+    return TORRC_PATH
+
 # Returns the current external IPV4 address
 def get_external_ip(session: requests.Session) -> str:
-    return session.get('http://ipecho.net/plain').text
-    # return tor.get('https://api64.ipify.org/?format=json').json()['ip']
+    apis = [
+        'https://api.ipify.org',
+        'https://api.my-ip.io/ip',
+        'https://checkip.amazonaws.com',
+        'https://icanhazip.com',
+        'https://ifconfig.me/ip',
+        'https://ip.rootnet.in',
+        'https://ipapi.co/ip',
+        'https://ipinfo.io/ip',
+        'https://myexternalip.com/raw',
+        'https://trackip.net/ip',
+        'https://wtfismyip.com/text'
+    ]
+
+    for _ in apis:
+        api = random.choice(apis)
+        response = session.get(api)
+        
+        if response.status_code in range(200, 300):
+            return response.text.strip()
+        else: # Removing API if not working
+            apis.pop(apis.index(api))
 
 # CLI args parser
 def get_arguments():
@@ -56,7 +109,6 @@ def get_arguments():
     
     parser.add_argument('-u', '--url', help='The url of the target YouTube video.', required=True)
     parser.add_argument('-l', '--level', help='The amount of concurrent sessions to run (MIN=1, MAX=5).', required=False)
-    parser.add_argument('-a', '--auth', help='Include this flag if you have TOR protected by a password.', required=False)
 
     return parser.parse_args()
 
@@ -74,21 +126,13 @@ def verify_youtube_url(url: str) -> bool:
 def get_error_message(err: str) -> str:
     error_message = {
         'INVURL': 'The passed url is not valid.',
-        'INVLVL': 'The number of sessions specified is not valid (MIN=1, MAX=5).',
-        'DIREXS': f'The temporary directory {TMP_DIR} already exists.'
+        'INVLVL': 'The number of sessions specified is not valid (MIN=1, MAX=5).'
     }
     
     return f'{Style.BRIGHT}{Fore.RED}Error: {error_message[err]}{Style.RESET_ALL}'
 
 def start_application(url: str, level: int=1):
-    config = [
-        { 'SOCKS': 9050, 'CONTROL': 9051 },
-        { 'SOCKS': 9052, 'CONTROL': 9053 },
-        { 'SOCKS': 9054, 'CONTROL': 9055 },
-        { 'SOCKS': 9056, 'CONTROL': 9057 },
-        { 'SOCKS': 9058, 'CONTROL': 9059 },
-    ]
-
+    socks_ports = [9050, 9052, 9054, 9056, 9058]
     threads = []
     
     if not level in range(1, 6):
@@ -96,8 +140,14 @@ def start_application(url: str, level: int=1):
         exit()
 
     for i in range(level):
-        threads.append(RequestThread(url=url, socksPort=config[i]['SOCKS'], controlPort=config[i]['CONTROL']))
+        threads.append(RequestThread(url, socks_ports[i]))
         threads[i].start()
+
+def clean_at_exit():
+    try:
+        shutil.rmtree('/tmp/youtooler')
+    except:
+        pass
 
 def main():
     # Startup
@@ -112,4 +162,6 @@ def main():
         print(get_error_message('INVURL'), stderr)
 
 if __name__ == '__main__':
+    # Exit handler
+    atexit.register(clean_at_exit)
     main()
