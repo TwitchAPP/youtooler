@@ -35,22 +35,13 @@ class RequestThread(threading.Thread):
         # Temp torrc config file
         torrc_path = create_temp_torrc(self.socks_port)
 
-        # Creating new TOR circuit on the specified socks_port
-        try:
-            tor_process = subprocess.Popen(['tor', '-f', torrc_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            tor_pids.append(tor_process.pid)
-        except:
-            print(f'{Style.BRIGHT}{Fore.GREEN}Failed while creating a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
-            exit()
-        
-        print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
-
         # Chrome WebDriver setup
         options = Options()
         options.add_argument(f'--proxy-server=socks5://localhost:{self.socks_port}')
+        options.add_argument('--disable-audio-output')
 
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-        driver.set_window_size(width=400, height=300)
+        driver.set_window_size(width=800, height=600)
 
         # Proxying session through TOR (to gather the external ip)
         session = requests.Session()
@@ -60,9 +51,22 @@ class RequestThread(threading.Thread):
         }
 
         while True:
-            driver.get(f'{self.url}&t={random.randint(1, 300)}s')
+            # Creating new TOR circuit on the specified socks_port
+            try:
+                tor_process = subprocess.Popen(['tor', '-f', torrc_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                tor_pids.append(tor_process.pid)
+            except:
+                print(f'{Style.BRIGHT}{Fore.GREEN}Failed while creating a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
+                exit()
             
-            print(f'{Style.BRIGHT}{Fore.GREEN}Current thread: {self.getName()} | Tor IP: {get_external_ip(session)}{Style.RESET_ALL}')
+            print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
+
+            try:
+                driver.get(f'{self.url}&t={random.randint(1, 300)}s')
+            except:
+                continue
+
+            print(f'{Style.BRIGHT}{Fore.GREEN}Current thread: {self.name} | Tor IP: {get_external_ip(session)}{Style.RESET_ALL}')
 
             # Sleeping between 5 and 10 seconds
             time.sleep(random.uniform(20, 30))
@@ -187,6 +191,7 @@ def get_error_message(err: str) -> str:
 
 def start_application(url: str):
     socks_ports = [9050, 9052, 9054, 9056, 9058]
+
     threads = []
 
     create_storage_dir()
