@@ -15,7 +15,7 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from sys import stderr
 
-# Globals
+# PIDs of the subprocesses to kill when exiting
 tor_pids = []
 
 class RequestThread(threading.Thread):
@@ -35,22 +35,13 @@ class RequestThread(threading.Thread):
         # Temp torrc config file
         torrc_path = create_temp_torrc(self.socks_port)
 
-        # Creating new TOR circuit on the specified socks_port
-        try:
-            tor_process = subprocess.Popen(['tor', '-f', torrc_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            tor_pids.append(tor_process.pid)
-        except:
-            print(f'{Style.BRIGHT}{Fore.GREEN}Failed while creating a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
-            exit()
-        
-        print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
-
         # Chrome WebDriver setup
         options = Options()
         options.add_argument(f'--proxy-server=socks5://localhost:{self.socks_port}')
+        options.add_argument('--disable-audio-output')
 
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-        driver.set_window_size(width=400, height=300)
+        driver.set_window_size(width=800, height=600)
 
         # Proxying session through TOR (to gather the external ip)
         session = requests.Session()
@@ -60,11 +51,29 @@ class RequestThread(threading.Thread):
         }
 
         while True:
-            driver.get(f'{self.url}&t={random.randint(1, 300)}s')
+            # Creating new TOR circuit on the specified socks_port
+            try:
+                tor_process = subprocess.Popen(['tor', '-f', torrc_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                tor_pids.append(tor_process.pid)
+            except:
+                print(f'{Style.BRIGHT}{Fore.GREEN}Failed while creating a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
+                exit()
             
-            print(f'{Style.BRIGHT}{Fore.GREEN}Current thread: {self.getName()} | Tor IP: {get_external_ip(session)}{Style.RESET_ALL}')
+            print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
 
-            # Sleeping between 5 and 10 seconds
+            try:
+                driver.get(f'{self.url}&t={random.randint(1, 300)}s')
+            except:
+                continue
+            
+            print(f'{Style.BRIGHT}{Fore.GREEN}Current thread: {self.name} | Tor IP: {get_external_ip(session)}{Style.RESET_ALL}')
+
+            # Killing subprocess in order to create a new TOR circuit
+            os.kill(tor_process.pid, signal.SIGTERM)
+            tor_pids.pop(tor_pids.index(tor_process.pid))
+
+            driver.delete_all_cookies()
+
             time.sleep(random.uniform(20, 30))
 
 def print_logo():
@@ -142,8 +151,12 @@ def get_external_ip(session: requests.Session) -> str:
 
     for _ in apis:
         api = random.choice(apis)
-        response = session.get(api)
-        
+
+        try:
+            response = session.get(api)
+        except:
+            pass
+
         if response.status_code in range(200, 300):
             return response.text.strip()
         else: # Removing API if not working
