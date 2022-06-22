@@ -2,7 +2,6 @@ import atexit
 import os
 import random
 import requests
-import requests_random_user_agent
 import shutil
 import signal
 import subprocess
@@ -10,6 +9,10 @@ import threading
 import time
 from argparse import ArgumentParser
 from colorama import Fore, Back, Style
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 from sys import stderr
 
 # Globals
@@ -38,29 +41,31 @@ class RequestThread(threading.Thread):
             tor_pids.append(tor_process.pid)
         except:
             print(f'{Style.BRIGHT}{Fore.GREEN}Failed while creating a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
-        else:
-            print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
+            exit()
+        
+        print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
+
+        # Chrome WebDriver setup
+        options = Options()
+        options.add_argument(f'--proxy-server=socks5://localhost:{self.socks_port}')
+
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver.set_window_size(width=400, height=300)
+
+        # Proxying session through TOR (to gather the external ip)
+        session = requests.Session()
+        session.proxies = {
+            'http': f'socks5://localhost:{self.socks_port}',
+            'https': f'socks5://localhost:{self.socks_port}'
+        }
 
         while True:
-            # Proxying requests through TOR
-            session = requests.Session()
-            session.proxies = {
-                'http': f'socks5://127.0.0.1:{self.socks_port}',
-                'https': f'socks5://127.0.0.1:{self.socks_port}'
-            }
-
-            try:
-                response = session.get(self.url)
-            except:
-                pass
-            else:
-                if response.status_code in range(200, 300):
-                    print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(session)}\t|   Request status: {response.status_code}{Style.RESET_ALL}')
-                else:
-                    print(f'{Style.BRIGHT}{Fore.GREEN}Tor IP: {get_external_ip(session)}\t|   Request status: {Fore.RED}{response.status_code}{Style.RESET_ALL}')
+            driver.get(f'{self.url}&t={random.randint(1, 300)}s')
+            
+            print(f'{Style.BRIGHT}{Fore.GREEN}Current thread: {self.getName()} | Tor IP: {get_external_ip(session)}{Style.RESET_ALL}')
 
             # Sleeping between 5 and 10 seconds
-            time.sleep(random.uniform(5, 10))
+            time.sleep(random.uniform(20, 30))
 
 def print_logo():
     print(f'{Style.BRIGHT}')
@@ -145,10 +150,12 @@ def get_external_ip(session: requests.Session) -> str:
             apis.pop(apis.index(api))
 
 def get_arguments():
-    parser = ArgumentParser(description='YouTube automated views farmer based on TOR.')
+    '''
+    Returns a Namespace containing the cli args.
+    '''
     
+    parser = ArgumentParser(description='YouTube automated views farmer based on TOR.')
     parser.add_argument('-u', '--url', help='The url of the target YouTube video.', required=True)
-    parser.add_argument('-l', '--level', help='The amount of concurrent sessions to run (MIN=1, MAX=5).', required=False)
 
     return parser.parse_args()
 
@@ -172,26 +179,23 @@ def get_error_message(err: str) -> str:
     
     error_message = {
         'INVURL': 'The passed url is not valid.',
-        'INVLVL': 'The number of sessions specified is not valid (MIN=1, MAX=5).',
         'STRDIR': 'Could not create the storage directory... run the program again.',
         'DTADIR': 'Could not create the data directory... run the program again.'
     }
     
     return f'{Style.BRIGHT}{Fore.RED}Error: {error_message[err]}{Style.RESET_ALL}'
 
-def start_application(url: str, level: int=1):
+def start_application(url: str):
     socks_ports = [9050, 9052, 9054, 9056, 9058]
     threads = []
 
     create_storage_dir()
 
-    if not level in range(1, 6):
-        print(get_error_message('INVLVL'), file=stderr)
-        exit()
-
-    for i in range(level):
-        threads.append(RequestThread(url, socks_ports[i]))
-        threads[i].start()
+    for port in socks_ports:
+        threads.append(RequestThread(url, port))
+    
+    for thread in threads:
+        thread.start()
 
 def clean_at_exit():
     '''
@@ -214,7 +218,7 @@ def main():
     args = get_arguments()
 
     if verify_youtube_url(args.url):
-        start_application(args.url, int(args.level))
+        start_application(args.url)
     else:
         print(get_error_message('INVURL'), stderr)
 
