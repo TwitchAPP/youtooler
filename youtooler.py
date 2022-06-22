@@ -15,7 +15,7 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from sys import stderr
 
-# Globals
+# PIDs of the subprocesses to kill when exiting
 tor_pids = []
 
 class RequestThread(threading.Thread):
@@ -65,10 +65,15 @@ class RequestThread(threading.Thread):
                 driver.get(f'{self.url}&t={random.randint(1, 300)}s')
             except:
                 continue
-
+            
             print(f'{Style.BRIGHT}{Fore.GREEN}Current thread: {self.name} | Tor IP: {get_external_ip(session)}{Style.RESET_ALL}')
 
-            # Sleeping between 5 and 10 seconds
+            # Killing subprocess in order to create a new TOR circuit
+            os.kill(tor_process.pid, signal.SIGTERM)
+            tor_pids.pop(tor_pids.index(tor_process.pid))
+
+            driver.delete_all_cookies()
+
             time.sleep(random.uniform(20, 30))
 
 def print_logo():
@@ -146,8 +151,12 @@ def get_external_ip(session: requests.Session) -> str:
 
     for _ in apis:
         api = random.choice(apis)
-        response = session.get(api)
-        
+
+        try:
+            response = session.get(api)
+        except:
+            pass
+
         if response.status_code in range(200, 300):
             return response.text.strip()
         else: # Removing API if not working
@@ -191,7 +200,6 @@ def get_error_message(err: str) -> str:
 
 def start_application(url: str):
     socks_ports = [9050, 9052, 9054, 9056, 9058]
-
     threads = []
 
     create_storage_dir()
