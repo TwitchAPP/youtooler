@@ -4,11 +4,16 @@ import random
 import requests
 import requests_random_user_agent
 import shutil
+import signal
+import subprocess
 import threading
 import time
 from argparse import ArgumentParser
 from colorama import Fore, Back, Style
 from sys import stderr
+
+# Globals
+tor_pids = []
 
 class RequestThread(threading.Thread):
     '''
@@ -24,11 +29,17 @@ class RequestThread(threading.Thread):
         self.socks_port = socks_port
 
     def run(self):
-        # Starting new TOR instance on the specified socks_port
+        # Temp torrc config file
         torrc_path = create_temp_torrc(self.socks_port)
-        os.system(f'tor -f {torrc_path} > /dev/null &')
 
-        print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks port: {self.socks_port}{Style.RESET_ALL}')
+        # Creating new TOR circuit on the specified socks_port
+        try:
+            tor_process = subprocess.Popen(['tor', '-f', torrc_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            tor_pids.append(tor_process.pid)
+        except:
+            print(f'{Style.BRIGHT}{Fore.GREEN}Failed while creating a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
+        else:
+            print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
 
         while True:
             # Proxying requests through TOR
@@ -184,8 +195,13 @@ def start_application(url: str, level: int=1):
 
 def clean_at_exit():
     '''
+    Kills the TOR subprocesses.
     Removes the temporary storage directory and its subdirectories.
     '''
+
+    # Killing subprocesses
+    for pid in tor_pids:
+        os.kill(pid, signal.SIGTERM)
 
     try:
         shutil.rmtree('/tmp/youtooler')
