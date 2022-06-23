@@ -18,6 +18,85 @@ from sys import stderr
 # PIDs of the subprocesses to kill when exiting
 tor_pids = []
 
+class Tor():
+    def __init__(self, socks_port: int):
+        self.socks_port = socks_port
+        self.process_pid = -1
+        self.torrc_path = self.__create_temp_torrc__(socks_port)
+
+    def start_tor(self):
+        tor_process = subprocess.Popen(['tor', '-f', self.torrc_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.process_pid = tor_process.pid
+
+        return tor_process
+
+    def kill_tor(self):
+        os.kill(self.process_pid, signal.SIGTERM)
+
+    def get_external_address(self):
+        '''
+        Returns the external IP address with the help of a random IP API.\n
+        Each time the function gets called, a random API is chosen to retrieve the IP address.\n
+        The function checks whether an API is working or not, if it isn't then another one is chosen.
+        '''
+
+        apis = [
+            'https://api.ipify.org',
+            'https://api.my-ip.io/ip',
+            'https://checkip.amazonaws.com',
+            'https://icanhazip.com',
+            'https://ifconfig.me/ip',
+            'https://ip.rootnet.in',
+            'https://ipapi.co/ip',
+            'https://ipinfo.io/ip',
+            'https://myexternalip.com/raw',
+            'https://trackip.net/ip',
+            'https://wtfismyip.com/text'
+        ]
+
+        proxies = {
+            'http': f'socks5://localhost:{self.socks_port}',
+            'https': f'socks5://localhost:{self.socks_port}'
+        }
+
+        for _ in apis:
+            api = random.choice(apis)
+
+            try:
+                response = requests.get(api, proxies=proxies)
+            except:
+                pass
+
+            if response.status_code in range(200, 300):
+                return response.text.strip()
+            else: # Removing API if not working
+                apis.pop(apis.index(api))
+    
+    def __create_temp_torrc__(self, socks_port: int):
+        '''
+        Creates a temporary torrc file inside the program's storage directory (/tmp/youtooler).\n
+        Also creates a temporary DataDirectory (used by TOR).\n
+        Example torrc:\n
+        --------------\n
+        SocksPort 9050\n
+        DataDirectory /tmp/youtooler/9050
+        '''
+
+        DATA_DIR = f'/tmp/youtooler/{socks_port}'
+        TORRC_PATH = f'/tmp/youtooler/torrc.{socks_port}'
+        
+        try:
+            os.mkdir(DATA_DIR)
+        except:
+            print(get_error_message('DTADIR'), file=stderr)
+            exit()
+        else:
+            with open(TORRC_PATH, 'w') as torrc:
+                torrc.write(f'SocksPort {socks_port}\nDataDirectory {DATA_DIR}\n')
+                torrc.close()
+
+        return TORRC_PATH
+
 class RequestThread(threading.Thread):
     '''
     Takes the target YouTube url and the socks_port for TOR as parameters.\n
@@ -32,8 +111,7 @@ class RequestThread(threading.Thread):
         self.socks_port = socks_port
 
     def run(self):
-        # Temp torrc config file
-        torrc_path = create_temp_torrc(self.socks_port)
+        tor = Tor(self.socks_port)
 
         # Chrome WebDriver setup
         options = Options()
@@ -43,33 +121,26 @@ class RequestThread(threading.Thread):
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         driver.set_window_size(width=800, height=600)
 
-        # Proxying session through TOR (to gather the external ip)
-        session = requests.Session()
-        session.proxies = {
-            'http': f'socks5://localhost:{self.socks_port}',
-            'https': f'socks5://localhost:{self.socks_port}'
-        }
-
         while True:
             # Creating new TOR circuit on the specified socks_port
             try:
-                tor_process = subprocess.Popen(['tor', '-f', torrc_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                tor_process = tor.start_tor()
                 tor_pids.append(tor_process.pid)
             except:
                 print(f'{Style.BRIGHT}{Fore.GREEN}Failed while creating a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
                 exit()
-            
-            print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
+            else:
+                print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
 
             try:
                 driver.get(f'{self.url}&t={random.randint(1, 300)}s')
             except:
-                continue
-            
-            print(f'{Style.BRIGHT}{Fore.GREEN}Current thread: {self.name} | Tor IP: {get_external_ip(session)}{Style.RESET_ALL}')
+                pass
+            else:
+                print(f'{Style.BRIGHT}{Fore.GREEN}Current thread: {self.name} | Tor IP: {tor.get_external_address()}{Style.RESET_ALL}')
 
             # Killing subprocess in order to create a new TOR circuit
-            os.kill(tor_process.pid, signal.SIGTERM)
+            tor.kill_tor()
             tor_pids.pop(tor_pids.index(tor_process.pid))
 
             driver.delete_all_cookies()
@@ -102,65 +173,6 @@ def create_storage_dir() -> str:
         exit()
 
     return STORAGE_DIR
-
-def create_temp_torrc(socks_port: int) -> str:
-    '''
-    Creates a temporary torrc file inside the program's storage directory (/tmp/youtooler).\n
-    Also creates a temporary DataDirectory (used by TOR).\n
-    Example torrc:\n
-    --------------\n
-    SocksPort 9050\n
-    DataDirectory /tmp/youtooler/9050
-    '''
-
-    DATA_DIR = f'/tmp/youtooler/{socks_port}'
-    TORRC_PATH = f'/tmp/youtooler/torrc.{socks_port}'
-    
-    try:
-        os.mkdir(DATA_DIR)
-    except:
-        print(get_error_message('DTADIR'), file=stderr)
-        exit()
-    else:
-        with open(TORRC_PATH, 'w') as torrc:
-            torrc.write(f'SocksPort {socks_port}\nDataDirectory {DATA_DIR}\n')
-            torrc.close()
-
-    return TORRC_PATH
-
-def get_external_ip(session: requests.Session) -> str:
-    '''
-    Returns the external IP address with the help of a random IP API.\n
-    Each time the function gets called, a random API is chosen to retrieve the IP address.\n
-    The function checks whether an API is working or not, if it isn't then another one is chosen.
-    '''
-
-    apis = [
-        'https://api.ipify.org',
-        'https://api.my-ip.io/ip',
-        'https://checkip.amazonaws.com',
-        'https://icanhazip.com',
-        'https://ifconfig.me/ip',
-        'https://ip.rootnet.in',
-        'https://ipapi.co/ip',
-        'https://ipinfo.io/ip',
-        'https://myexternalip.com/raw',
-        'https://trackip.net/ip',
-        'https://wtfismyip.com/text'
-    ]
-
-    for _ in apis:
-        api = random.choice(apis)
-
-        try:
-            response = session.get(api)
-        except:
-            pass
-
-        if response.status_code in range(200, 300):
-            return response.text.strip()
-        else: # Removing API if not working
-            apis.pop(apis.index(api))
 
 def get_arguments():
     '''
