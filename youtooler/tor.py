@@ -27,6 +27,7 @@ class Tor():
     def kill_tor(self):
         if self.is_tor_started:
             os.kill(self.process_pid, signal.SIGTERM)
+            self.is_tor_started = False
 
     def get_external_address(self):
         '''

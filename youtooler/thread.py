@@ -28,20 +28,15 @@ class RequestThread(threading.Thread):
         options.add_argument('--disable-audio-output')
 
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-        driver.set_window_size(width=800, height=600)
+        driver.set_window_size(width=600, height=400)
 
         while True:
             # Creating new TOR circuit on the specified socks_port
-            try:
-                tor.start_tor()
-            except:
-                print(f'{Style.BRIGHT}{Fore.GREEN}Failed while creating a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
-                exit()
-            else:
-                print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
+            tor.start_tor()
+            print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
 
             try:
-                driver.get(f'{self.url}&t={random.randint(1, 300)}s')
+                driver.get(f'{self.url}&t={random.randint(1, 300)}s')  
             except:
                 print(f'{Style.BRIGHT}{Fore.RED}Unsuccessful request made by {self.name} | Tor IP: {tor.get_external_address()}{Style.RESET_ALL}')
             else:
@@ -52,5 +47,4 @@ class RequestThread(threading.Thread):
             print(f'{Style.BRIGHT}{Fore.YELLOW}Closing Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
 
             driver.delete_all_cookies()
-
-            time.sleep(random.uniform(20, 30))
+            time.sleep(random.uniform(10, 20))
