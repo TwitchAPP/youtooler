@@ -11,20 +11,26 @@ class Tor():
 
     def __init__(self, socks_port: int):
         self.socks_port = socks_port
-        self.process_pid = -1
+        self.process_pid = 0
         self.torrc_path = self.__create_temp_torrc__(socks_port)
         self.is_tor_started = False
-        # self.__exit_handler__ = atexit.register(self.kill_tor)
 
     def start_tor(self):
-        tor_process = subprocess.Popen(['tor', '-f', self.torrc_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        
-        self.process_pid = tor_process.pid
-        self.is_tor_started = True
+        '''
+        Starts a TOR subprocess on the specified port.
+        '''
 
-        return tor_process
+        if not self.is_tor_started:
+            tor_process = subprocess.Popen(['tor', '-f', self.torrc_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            
+            self.process_pid = tor_process.pid
+            self.is_tor_started = True
 
     def kill_tor(self):
+        '''
+        Kills TOR if running.
+        '''
+
         if self.is_tor_started:
             os.kill(self.process_pid, signal.SIGTERM)
             self.is_tor_started = False
@@ -60,6 +66,7 @@ class Tor():
 
         for _ in apis:
             api = random.choice(apis)
+            response = requests.Response()
 
             try:
                 response = requests.get(api, proxies=proxies)
