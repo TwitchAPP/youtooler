@@ -2,6 +2,7 @@ import atexit
 import shutil
 from colorama import Fore, Back, Style
 from youtooler.thread import RequestThread
+from youtooler.utils import get_video_duration
 
 def print_logo():
     print(f'{Style.BRIGHT}')
@@ -22,14 +23,15 @@ def start_application(url: str):
     
     socks_ports = [9050, 9052, 9054, 9056, 9058]
     threads = []
-
-    atexit.register(clean_at_exit) # Exit handler
+    video_duration = get_video_duration(url)
 
     for port in socks_ports:
-        threads.append(RequestThread(url, port))
+        threads.append(RequestThread(url, video_duration, port))
     
     for thread in threads:
         thread.start()
+
+    atexit.register(clean_at_exit) # Exit handler
 
 def clean_at_exit():
     '''

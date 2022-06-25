@@ -1,6 +1,8 @@
+import isodate
 import os
 import requests
 from argparse import ArgumentParser
+from bs4 import BeautifulSoup
 from colorama import Fore, Style
 from sys import stderr
 
@@ -41,6 +43,34 @@ def get_error_message(err: str) -> str:
     }
     
     return f'{Style.BRIGHT}{Fore.RED}Error: {error_message[err]}{Style.RESET_ALL}'
+
+def get_video_duration(url: str) -> int:
+    '''
+    Calculates the duration in seconds of the passed video.
+    '''
+
+    DEFAULT_DURATION = 300 # Default value (5 min)
+
+    html = requests.get(url)
+    
+    if not html.status_code in range(200, 300):
+        return DEFAULT_DURATION
+
+    # Parsing response
+    parsed_html = BeautifulSoup(html.text, features='lxml')
+
+    # Searching for the tag <meta itemprop="duration" content="">
+    duration_tag = parsed_html.find('meta', {'itemprop': 'duration'})
+
+    if duration_tag is None: # Tag not found
+        return DEFAULT_DURATION
+
+    iso_8601_duration = duration_tag.attrs['content']
+
+    # Converting to minutes and seconds
+    duration = isodate.parse_duration(iso_8601_duration)
+
+    return duration.seconds
 
 def verify_youtube_url(url: str) -> bool:
     '''
