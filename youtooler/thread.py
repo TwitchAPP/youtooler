@@ -14,9 +14,10 @@ class RequestThread(threading.Thread):
     Takes the target YouTube url and the socks_port for TOR as parameters.\n
     '''
 
-    def __init__(self, url: str, socks_port: int):
+    def __init__(self, url: str, video_duration: int, socks_port: int):
         threading.Thread.__init__(self)
         self.url = url
+        self.video_duration = video_duration
         self.socks_port = socks_port
 
     def run(self):
@@ -36,7 +37,7 @@ class RequestThread(threading.Thread):
             print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
 
             try:
-                driver.get(f'{self.url}&t={random.randint(1, 300)}s')  
+                driver.get(f'{self.url}&t={random.randint(1, self.video_duration)}s')  
             except:
                 print(f'{Style.BRIGHT}{Fore.RED}Unsuccessful request made by {self.name} | Tor IP: {tor.get_external_address()}{Style.RESET_ALL}')
             else:
