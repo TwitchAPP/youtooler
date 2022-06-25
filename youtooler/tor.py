@@ -66,17 +66,16 @@ class Tor():
 
         for _ in apis:
             api = random.choice(apis)
-            response = requests.Response()
 
             try:
                 response = requests.get(api, proxies=proxies)
             except:
                 pass
-
-            if response.status_code in range(200, 300):
-                return response.text.strip()
-            else: # Removing API if not working
-                apis.pop(apis.index(api))
+            else:
+                if response.status_code in range(200, 300):
+                    return response.text.strip()
+                else: # Removing API if not working
+                    apis.pop(apis.index(api))
     
     def __create_temp_torrc__(self, socks_port: int):
         '''

@@ -15,6 +15,11 @@ def print_logo():
     print(f'{Style.RESET_ALL}')
 
 def start_application(url: str):
+    '''
+    Starts 5 threads with one TOR subprocess each.
+    Default socks_ports: 9050, 9052, 9054, 9056, 9058.
+    '''
+    
     socks_ports = [9050, 9052, 9054, 9056, 9058]
     threads = []
 

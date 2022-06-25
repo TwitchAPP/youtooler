@@ -31,8 +31,8 @@ class RequestThread(threading.Thread):
         driver.set_window_size(width=600, height=400)
 
         while True:
-            # Creating new TOR circuit on the specified socks_port
-            tor.start_tor()
+            tor.start_tor() # Creating new TOR circuit
+            
             print(f'{Style.BRIGHT}{Fore.GREEN}Created a new Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
 
             try:
@@ -41,10 +41,6 @@ class RequestThread(threading.Thread):
                 print(f'{Style.BRIGHT}{Fore.RED}Unsuccessful request made by {self.name} | Tor IP: {tor.get_external_address()}{Style.RESET_ALL}')
             else:
                 print(f'{Style.BRIGHT}{Fore.GREEN}Successful request made by {self.name} | Tor IP: {tor.get_external_address()}{Style.RESET_ALL}')
+                time.sleep(random.uniform(10, 20))
 
-            # Killing subprocess in order to create a new TOR circuit
-            tor.kill_tor()
-            print(f'{Style.BRIGHT}{Fore.YELLOW}Closing Tor circuit on socks_port: {self.socks_port}{Style.RESET_ALL}')
-
-            driver.delete_all_cookies()
-            time.sleep(random.uniform(10, 20))
+            tor.kill_tor() # Closing TOR circuit
