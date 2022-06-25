@@ -6,8 +6,7 @@ from sys import stderr
 
 def create_storage_dir() -> str:
     '''
-    Creates the temporary storage directory of the program (/tmp/youtooler).\n
-    Returns the path to the storage directory.
+    Creates the temporary storage directory of the program ('/tmp/youtooler') and returns its path.
     '''
 
     STORAGE_DIR = '/tmp/youtooler'
@@ -25,14 +24,14 @@ def get_arguments():
     Returns a Namespace containing the cli args.
     '''
     
-    parser = ArgumentParser(description='YouTube viewer BOT based on TOR.')
+    parser = ArgumentParser(description='YouTube auto-viewer BOT based on TOR.')
     parser.add_argument('-u', '--url', help='The url of the target YouTube video.', required=True)
 
     return parser.parse_args()
 
 def get_error_message(err: str) -> str:
     '''
-    Returns the error message corresponding to the passed error code (err).
+    Returns the error message corresponding to the passed error code.
     '''
     
     error_message = {
@@ -45,7 +44,7 @@ def get_error_message(err: str) -> str:
 
 def verify_youtube_url(url: str) -> bool:
     '''
-    Checks whether the passed url is a real YouTube video.
+    Checks whether the passed url is a real YouTube video or not.
     '''
     
     if not url.find('https://www.youtube.com/watch?v=') == 0:
