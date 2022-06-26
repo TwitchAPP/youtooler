@@ -8,44 +8,56 @@
 
 ***This is just an experiment, the usage of this program is NOT RECCOMENDED.***
 
-***Most TOR nodes are blacklisted, this makes the potential gains of the program close to none, furthermore YouTube could freeze/reset the views counter of the video if any suspicious activity is detected.***
+***Most TOR nodes are blacklisted, this makes the potential gains obtainable with the program close to none, furthermore YouTube could reset the views counter of the video at any time if any suspicious activity is detected.***
 
 ## Requirements
 
-- ***Linux*** Mid-High end machine.
+- **Linux** Mid-High end machine.
 
-- ***Python*** 3.10.x
+- **Python** 3.10.x
 
-- ***Chrome*** browser.
+- **Chrome** browser.
 
-- ***TOR*** (not TOR browser).
+- **TOR** (not TOR browser).
 
-- ***High speed*** internet connection.
+- **High speed** internet connection.
+
+## Chrome Installation (Debian / Ubuntu)
+
+### (Skip this if you already have Chrome)
+
+```bash
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+```
+
+```bash
+sudo apt install ./google-chrome-stable_current_amd64.deb
+```
 
 ## TOR Installation (Debian / Ubuntu)
 
 ### (Skip this if you already have TOR)
 
 ```bash
-$ sudo apt update
+sudo apt update
 ```
 
 ```bash
-$ sudo apt install tor
+sudo apt install tor
 ```
 
 ## Youtooler Installation (Linux)
 
 ```bash
-$ git clone https://github.com/Fraccs/youtooler.git
+git clone https://github.com/Fraccs/youtooler.git
 ```
 
 ```bash
-$ cd youtooler
+cd youtooler
 ```
 
 ```bash
-$ pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 ## Usage
