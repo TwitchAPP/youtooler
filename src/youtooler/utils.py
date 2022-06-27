@@ -57,7 +57,7 @@ def get_video_duration(url: str) -> int:
         return DEFAULT_DURATION
 
     # Parsing response
-    parsed_html = BeautifulSoup(markup=html.text, features='html5lib')
+    parsed_html = BeautifulSoup(markup=html.text)
 
     # Searching for the tag <meta itemprop="duration" content="">
     duration_tag = parsed_html.find('meta', {'itemprop': 'duration'})
