@@ -3,7 +3,7 @@
 
 name: youtooler
 
-on: [push, pullrequest]
+on: [push, pull_request]
 
 permissions:
   contents: read
